@@ -1,4 +1,6 @@
-﻿require(
+﻿//consider removing BasemapToggle from require
+
+require(
     [
         "esri/map", "esri/layers/WMSLayer", "esri/layers/WFSLayer", "esri/layers/WebTiledLayer",
         "esri/geometry/Extent", "esri/toolbars/draw", "esri/geometry/geometryEngine", "esri/geometry/geodesicUtils",
@@ -19,6 +21,7 @@
         esriConfig.defaults.io.corsEnabledServers.push("v-gisserver2");
         esriConfig.defaults.io.corsEnabledServers.push("v-gisserver2:8080");
         esriConfig.defaults.io.corsEnabledServers.push("v-gisserver2:6080");
+        esriConfig.defaults.io.corsEnabledServers.push("v-gisserver2:6443");
         esriConfig.defaults.io.corsEnabledServers.push("localhost");
 
 
@@ -45,14 +48,6 @@
                 var mp = WebMercatorUtils.webMercatorToGeographic(evt.mapPoint);
 
                 var testMap = IRI.Common.CoordinateSystem.MapProjects.WebMercatorToGeodeticWgs84(evt.mapPoint);
-
-                //GeodeticWgs84: "GeodeticWgs84",
-                //GeodeticWgs84Dms: "GeodeticWgs84Dms",
-                //GeodeticClarke: "GeodeticClarke",
-                //GeodeticClarkeDms: "GeodeticClarkeDms",
-                //UTM: "UTM",
-                //LccNiocWgs84: "LccNiocWgs84",
-                //LccNiocClarke: "LccNiocClarke"                
 
                 var resultText = "coordinate not available";
 
@@ -99,21 +94,15 @@
                 $("#coordinatePanel").text(resultText);
             });
 
-        //map.on("load", function createToolbar(theMap) {
-        //    //mapPresenter.draw = new Draw(map);
-        //    //mapPresenter.draw.on("draw-end", addToMap);
-        //});
-        var toggle = new BasemapToggle({
-            map: mapPresenter.mapControl,
-            basemap: "satellite"
-        },
-            "BasemapToggle");
-        toggle.startup();
+        //var toggle = new BasemapToggle({
+        //    map: mapPresenter.mapControl,
+        //    basemap: "satellite"
+        //},
+        //    "BasemapToggle");
+        //toggle.startup();
 
         var wmsLayer = new WMSLayer(configPresenter.WmsUrl,
             {
-                //var wmsLayer = new WMSLayer("http://localhost/ZavarNegar/zavarNegar/wms/myWms", {
-                //var wmsLayer = new WMSLayer("http://localhost:51512/zavarNegar/wms/myWms", {
                 format: "png",
                 visibleLayers: mapPresenter.visibleLayers,
                 version: "1.3.0",
@@ -125,28 +114,27 @@
         wmsLayer.spatialReference = { wkid: 3857 };
 
 
-        //googleTerrain = new WebTiledLayer(
         //    "http://localhost/BaseMap/Google/Terrain/${level}/${col}_${row}_${level}.jpg",
-        //    {
-        //        "copyright": "NIOC",
-        //        "id": "Google Terrain Map",
-        //    });
+
         googleTerrain = new WebTiledLayer(
-            configPresenter.BaseMapServer + "/BaseMap/Google/Terrain/${level}/${row}_${col}.png",
+            //configPresenter.BaseMapServer + "/BaseMap/Google/Terrain/${level}/${row}_${col}.png",
+            configPresenter.GoogleTerrainUrl,
             {
                 "copyright": "NIOC",
                 "id": "Google Terrain Map",
             });
 
         googleRoadMap = new WebTiledLayer(
-            configPresenter.BaseMapServer + "/BaseMap/Google/RoadMap/${level}/${row}_${col}.png",
+            //configPresenter.BaseMapServer + "/BaseMap/Google/RoadMap/${level}/${row}_${col}.png",
+            configPresenter.GoogleRoadMapUrl,
             {
                 "copyright": "NIOC",
                 "id": "Google RoadMap Map",
             });
 
         googleSatellite = new WebTiledLayer(
-            configPresenter.BaseMapServer + "/BaseMap/Google/Satellite/${level}/${row}_${col}.png",
+            //configPresenter.BaseMapServer + "/BaseMap/Google/Satellite/${level}/${row}_${col}.png",
+            configPresenter.GoogleSatelliteUrl,
             {
                 "copyright": "NIOC",
                 "id": "Google Satellite Map",
@@ -155,6 +143,18 @@
         mapPresenter.mapControl.addLayer(googleTerrain);
 
         mapPresenter.mapControl.addLayer(wmsLayer);
+
+        if (configPresenter.GeoMapServices) {
+            for (var i = 0; i < configPresenter.GeoMapServices.length; i++) {
+                //GeoMap commented 97.02.11
+                //mapPresenter.mapControl.addLayer(
+                //    new WMSLayer(configPresenter.GeoMapServices[i].wmsUrl, {
+                //        format: "png",
+                //        visibleLayers: configPresenter.GeoMapServices[i].visibleLayers,
+                //        version: "1.3.0"
+                //    }));
+            }
+        }
 
 
         //96.05.27 TEST WFS
@@ -186,13 +186,13 @@
         }
 
         var selectedLayer = new GraphicsLayer();
-        mapPresenter.mapControl.addLayer(selectedLayer);
-
         var highlightLayer = new GraphicsLayer();
-        mapPresenter.mapControl.addLayer(highlightLayer);
-
         var drawingLayer = new GraphicsLayer();
+
+        mapPresenter.mapControl.addLayer(selectedLayer);
+        mapPresenter.mapControl.addLayer(highlightLayer);
         mapPresenter.mapControl.addLayer(drawingLayer);
+
 
         mapPresenter.addDrawingGraphic = function (graphics) {
             drawingLayer.add(graphics);
@@ -213,7 +213,7 @@
         }
 
         //options:
-        //{fillColor, strokeColor}
+        //{fillColor, strokeColor, lineStyle, fillStyle}
         mapPresenter.createSymbolForEsriJson = function (esriJsonGeometry, options) {
             var symbol;
 
@@ -221,43 +221,38 @@
 
             var fill = options.fillColor ? options.fillColor : new dojo.Color([255, 255, 0, 0.25]);
 
+            var lineStyle = options.lineStyle ? options.lineStyle : esri.symbol.SimpleLineSymbol.STYLE_SOLID;
+
+            var fillStyle = options.fillStyle ? options.fillStyle : esri.symbol.SimpleFillSymbol.STYLE_SOLID;
+
             switch (esriJsonGeometry.type.toLowerCase()) {
                 case "point":
-                    symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_SQUARE,
+                case "multipoint":
+                    symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_CIRCLE,
                         10,
-                        new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                            stroke,
-                            1),
+                        new esri.symbol.SimpleLineSymbol(lineStyle, stroke, 1),
                         fill);
                     break;
                 case "polyline":
-                    symbol = new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                        stroke,
-                        2);
+                    symbol = new esri.symbol.SimpleLineSymbol(lineStyle, stroke, 2);
                     break;
                 case "polygon":
-                    symbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID,
-                        new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                            stroke,
-                            2),
-                        fill);
-                    break;
                 case "extent":
-                    symbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID,
-                        new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                            stroke,
-                            2),
+                    symbol = new esri.symbol.SimpleFillSymbol(fillStyle,
+                        new esri.symbol.SimpleLineSymbol(lineStyle, stroke, 2),
                         fill);
                     break;
-                case "multipoint":
-                    symbol = new esri.symbol.SimpleMarkerSymbol(
-                        esri.symbol.SimpleMarkerSymbol.STYLE_DIAMOND,
-                        20,
-                        new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                            stroke,
-                            1),
-                        fill);
-                    break;
+                //symbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID,
+                //            new esri.symbol.SimpleLineSymbol(style, stroke, 2),
+                //            fill);
+                //break;
+                //case "multipoint":
+                //    symbol = new esri.symbol.SimpleMarkerSymbol(
+                //        esri.symbol.SimpleMarkerSymbol.STYLE_DIAMOND,
+                //        20,
+                //        new esri.symbol.SimpleLineSymbol(style, stroke, 1),
+                //        fill);
+                //    break;
             }
 
             return symbol;
@@ -266,39 +261,47 @@
         mapPresenter.createSelectedSymbolForEsriJson = function (esriJsonGeometry) {
             return mapPresenter.createSymbolForEsriJson(esriJsonGeometry,
                 {
-                    fillColor: new dojo.Color([255, 255, 0, 0.25]),
-                    strokeColor: new dojo.Color([255, 0, 0])
+                    fillColor: new dojo.Color([0, 255, 255, 0.25]),
+                    strokeColor: new dojo.Color([0, 255, 255])
                 });
         }
 
         mapPresenter.createHighlightSymbolForEsriJson = function (esriJsonGeometry) {
             return mapPresenter.createSymbolForEsriJson(esriJsonGeometry,
                 {
-                    fillColor: new dojo.Color([255, 255, 0, 0.25]),
-                    strokeColor: new dojo.Color([0, 255, 255])
+                    fillColor: new dojo.Color([255, 255, 0, 0.50]),
+                    strokeColor: new dojo.Color([255, 255, 0])
                 });
         }
 
         mapPresenter.createDrawingSymbolForEsriJson = function (esriJsonGeometry) {
             return mapPresenter.createSymbolForEsriJson(esriJsonGeometry,
                 {
-                    //fillColor: new dojo.Color([155, 155, 0, 0.25]),
-                    //strokeColor: new dojo.Color([0, 0, 115])
-                    fillColor: new dojo.Color([155, 155, 0, 0.25]),
-                    strokeColor: esri.Color.fromHex("#FF8305") 
+                    fillColor: new dojo.Color([245, 162, 8, 0.25]),
+                    strokeColor: esri.Color.fromHex("#F5A208")
                 });
         }
 
         mapPresenter.createHighlightedDrawingSymbolForEsriJson = function (esriJsonGeometry) {
             return mapPresenter.createSymbolForEsriJson(esriJsonGeometry,
                 {
-                    //fillColor: new dojo.Color([155, 155, 0, 0.25]),
-                    //strokeColor: new dojo.Color([0, 0, 115])
                     fillColor: new dojo.Color([155, 155, 0, 0.25]),
                     strokeColor: esri.Color.fromHex("#FFEE62")
                 });
         }
 
+        mapPresenter.createDrawLineSymbol = function () {
+            return new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_LONGDASH,
+                esri.Color.fromHex("#F5A208"),
+                3);
+        }
+
+        mapPresenter.createDrawPolygonSymbol = function () {
+            return new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID,
+                new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_LONGDASH, esri.Color.fromHex("#F5A208"), 3),
+                new dojo.Color([245, 162, 8, 0.25]))
+
+        }
 
         //options:
         //{fillColor, strokeColor}
@@ -314,19 +317,19 @@
         mapPresenter.esriJsonToSelectedGraphic = function (esriJsonGeometry) {
             var symbol = mapPresenter.createSelectedSymbolForEsriJson(esriJsonGeometry);
 
-            return new esri.Graphic(esriJsonGeometry, symbol); 
+            return new esri.Graphic(esriJsonGeometry, symbol);
         }
 
         mapPresenter.esriJsonToHighlightedGraphic = function (esriJsonGeometry) {
             var symbol = mapPresenter.createHighlightSymbolForEsriJson(esriJsonGeometry);
 
-            return new esri.Graphic(esriJsonGeometry, symbol); 
+            return new esri.Graphic(esriJsonGeometry, symbol);
         }
 
         mapPresenter.esriJsonToDrawingGraphic = function (esriJsonGeometry) {
             var symbol = mapPresenter.createDrawingSymbolForEsriJson(esriJsonGeometry);
 
-            return new esri.Graphic(esriJsonGeometry, symbol); 
+            return new esri.Graphic(esriJsonGeometry, symbol);
         }
 
         mapPresenter.updateSelectedResultLayerMap = function (result, srid) {
@@ -334,74 +337,18 @@
             selectedLayer.clear();
 
             if (result) {
-                //var config = {
-                //    spatialReference: {
-                //        wkid: 3857 // WGS84 unprojected
-                //    }
-                //};
 
                 for (var i = 0; i < result.length; i++) {
 
                     var firstGeometry =
                         esri.geometry.fromJson(EsriJsonGeometryHelper.ParseGeoJson(result[i].geometry, srid));
-                    //firstGeometry.properties = undefined;
-                    //var wkt = new Wkt.Wkt();
-                    //wkt.read("POINT(34.3 23)");
-                    //var obj = wkt.toObject(config);
-
-                    //var tempObj = JsonUtils.fromJson(JSON.stringify(firstGeometry));
-                    //var tempObj2 = esri.geometry.fromJson(firstGeometry);
-                    //var obj = JSON.parse(firstGeometry);
 
                     if (!firstGeometry) {
                         continue;
                     }
 
-                    var symbol;
-
-                    switch (firstGeometry.type.toLowerCase()) {
-                        case "point":
-                            symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_SQUARE,
-                                10,
-                                new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                                    new dojo.Color([255, 0, 0]),
-                                    1),
-                                new dojo.Color([0, 255, 0, 0.25]));
-                            break;
-                        case "polyline":
-                            symbol = new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                                new dojo.Color([255, 0, 0]),
-                                2);
-                            break;
-                        case "polygon":
-                            symbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID,
-                                new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                                    new dojo.Color([255, 0, 0]),
-                                    2),
-                                new dojo.Color([255, 255, 0, 0.25]));
-                            break;
-                        case "extent":
-                            symbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID,
-                                new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                                    new dojo.Color([255, 0, 0]),
-                                    2),
-                                new dojo.Color([255, 255, 0, 0.25]));
-                            break;
-                        case "multipoint":
-                            symbol = new esri.symbol.SimpleMarkerSymbol(
-                                esri.symbol.SimpleMarkerSymbol.STYLE_DIAMOND,
-                                20,
-                                new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                                    new dojo.Color([0, 0, 0]),
-                                    1),
-                                new dojo.Color([255, 255, 0, 0.5]));
-                            break;
-                    }
-
-                    var graphic = new esri.Graphic(firstGeometry, symbol);
-                    selectedLayer.add(graphic);
+                    selectedLayer.add(mapPresenter.esriJsonToSelectedGraphic(firstGeometry));
                 }
-
             }
         };
 
@@ -415,13 +362,15 @@
 
             mapPresenter.draw = new Draw(mapPresenter.mapControl);
 
+            mapPresenter.draw.setLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_DASH);
+
             mapPresenter.draw.on("draw-complete",
                 function finish(evt) {
                     mapPresenter.draw.deactivate();
 
                     mapPresenter.mapControl.showZoomSlider();
 
-                    selectedLayer.clear();
+                    //selectedLayer.clear();
 
                     mapPresenter.draw = null;
 
@@ -445,7 +394,7 @@
                                 }
 
                                 //var srid = ArrayHelper.Last(result.crs.properties.name.split(':'));
-                                var srid = ArrayHelper.Last(gmlResult.FeatureCollection.boundedBy.Envelope._srsName);
+                                var srid = ArrayHelper.Last(gmlResult.FeatureCollection.boundedBy.Envelope._srsName.split(':'));
 
                                 mapPresenter.updateSelectedResultLayerMap(result.features, srid);
 
@@ -522,11 +471,11 @@
         mapPresenter.updateHighlightedFeatures = function (features) {
             highlightLayer.clear();
 
-            var config = {
-                spatialReference: {
-                    wkid: 3857 // WGS84 unprojected
-                }
-            };
+            //var config = {
+            //    spatialReference: {
+            //        wkid: 3857 // WGS84 unprojected
+            //    }
+            //};
 
             for (var i = 0; i < features.length; i++) {
 
@@ -541,50 +490,52 @@
                     continue;
                 }
 
-                var symbol;
+                //var symbol;
 
-                switch (firstGeometry.type) {
-                    case "point":
-                        symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_SQUARE,
-                            10,
-                            new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                                new dojo.Color([0, 255, 255]),
-                                1),
-                            new dojo.Color([0, 255, 0, 0.25]));
-                        break;
-                    case "polyline":
-                        symbol = new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                            new dojo.Color([0, 255, 255]),
-                            2);
-                        break;
-                    case "polygon":
-                        symbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID,
-                            new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                                new dojo.Color([0, 255, 255]),
-                                2),
-                            new dojo.Color([255, 255, 0, 0.25]));
-                        break;
-                    case "extent":
-                        symbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID,
-                            new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                                new dojo.Color([0, 255, 255]),
-                                2),
-                            new dojo.Color([255, 255, 0, 0.25]));
-                        break;
-                    case "multipoint":
-                        symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_DIAMOND,
-                            20,
-                            new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
-                                new dojo.Color([0, 255, 255]),
-                                1),
-                            new dojo.Color([255, 255, 0, 0.5]));
-                        break;
-                }
+                //switch (firstGeometry.type) {
+                //    case "point":
+                //        symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_SQUARE,
+                //            10,
+                //            new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
+                //                new dojo.Color([0, 255, 255]),
+                //                1),
+                //            new dojo.Color([0, 255, 0, 0.25]));
+                //        break;
+                //    case "polyline":
+                //        symbol = new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
+                //            new dojo.Color([0, 255, 255]),
+                //            2);
+                //        break;
+                //    case "polygon":
+                //        symbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID,
+                //            new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
+                //                new dojo.Color([0, 255, 255]),
+                //                2),
+                //            new dojo.Color([255, 255, 0, 0.25]));
+                //        break;
+                //    case "extent":
+                //        symbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID,
+                //            new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
+                //                new dojo.Color([0, 255, 255]),
+                //                2),
+                //            new dojo.Color([255, 255, 0, 0.25]));
+                //        break;
+                //    case "multipoint":
+                //        symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_DIAMOND,
+                //            20,
+                //            new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID,
+                //                new dojo.Color([0, 255, 255]),
+                //                1),
+                //            new dojo.Color([255, 255, 0, 0.5]));
+                //        break;
+                //}
 
-                var graphic = new esri.Graphic(firstGeometry, symbol);
+                //var graphic = new esri.Graphic(firstGeometry, symbol);
 
 
-                highlightLayer.add(graphic);
+                //highlightLayer.add(graphic);
+
+                highlightLayer.add(mapPresenter.esriJsonToHighlightedGraphic(firstGeometry));
             }
 
             //mapPresenter.mapControl.reorderLayer(highlightLayer, 1);
@@ -610,23 +561,6 @@
 
             return extent.expand(1.2);
         }
-        //var mergedExtent = null;
-
-        //for (var i = 0; i < featureSet.features.length; i++) {
-        //    var geometry = esri.geometry.fromJson(EsriJsonGeometryHelper.ParseGeoJson(featureSet.features[i].geometry, featureSet.srid));
-
-        //    var boundingBox = JsonUtils.fromJson(geometry).getExtent();
-
-        //    if (mergedExtent) {
-        //        mergedExtent = mergedExtent.union(boundingBox);
-        //    }
-        //    else {
-        //        mergedExtent = boundingBox;
-        //    }
-        //}
-
-        //return mergedExtent.expand(1.2);
-
 
 
         mapPresenter.zoomToFeatures = function (featureSet) {
@@ -744,6 +678,8 @@
 
             mapPresenter.draw = new Draw(mapPresenter.mapControl);
 
+            mapPresenter.draw.lineSymbol = mapPresenter.createDrawLineSymbol();
+
             mapPresenter.draw.on("draw-complete",
                 function finish(evt) {
                     mapPresenter.draw.deactivate();
@@ -771,6 +707,8 @@
             }
 
             mapPresenter.draw = new Draw(mapPresenter.mapControl);
+
+            mapPresenter.draw.fillSymbol = mapPresenter.createDrawPolygonSymbol();
 
             mapPresenter.draw.on("draw-complete",
                 function finish(evt) {
@@ -830,6 +768,8 @@
 
             mapPresenter.draw = new Draw(mapPresenter.mapControl);
 
+            mapPresenter.draw.lineSymbol = mapPresenter.createDrawLineSymbol();
+
             mapPresenter.draw.on("draw-complete",
                 function finish(evt) {
                     mapPresenter.draw.deactivate();
@@ -856,6 +796,8 @@
             }
 
             mapPresenter.draw = new Draw(mapPresenter.mapControl);
+
+            mapPresenter.draw.fillSymbol = mapPresenter.createDrawPolygonSymbol();
 
             mapPresenter.draw.on("draw-complete",
                 function finish(evt) {

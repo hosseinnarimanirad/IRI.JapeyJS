@@ -1,4 +1,5 @@
-﻿app.controller("gridController", function ($rootScope, $scope, $http, scopeService) {
+﻿//app.controller("gridController", function ($rootScope, $scope, $http, scopeService) {
+app.controller("gridController", function ($scope, $http) {
 
     onChange = function (arg) {
 
@@ -237,13 +238,13 @@
         applicationPresenter.resultLayers = selectedLayers;
 
 
-        scopeService.safeApply($rootScope, function () {
+        //scopeService.safeApply($rootScope, function () {
 
-            //$scope.$apply(function () {
-            $scope.showResultPanel = true;
-            //});
+        //    //$scope.$apply(function () {
+        //    $scope.showResultPanel = true;
+        //    //});
 
-        });
+        //});
 
 
         var listView = $("#listView").data("kendoListView");

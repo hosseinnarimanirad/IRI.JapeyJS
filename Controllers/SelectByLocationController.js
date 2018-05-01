@@ -11,15 +11,19 @@
         var name = $("#selectByLocationCombo").data("kendoDropDownList").text();
 
         if (selectByLocationPresenter.filterFeatures) {
-             
+
             var filters = selectByLocationPresenter.filterFeatures;
 
+            //arcgis server do not supports or in WFS request parameters, so we have to merge the geometries
+            //union features
+            var merged = mapPresenter.unionFeatures(filters);
+
             if (applicationPresenter.isArcGISServerMode) {
-                WfsHelper.GetFeatureIntersectWithMultipleGeometriesForArcGISServer(configPresenter.WfsUrl,
+                WfsHelper.GetFeatureIntersectForArcGISServer(configPresenter.WfsUrl,
                     name,
-                    //merged.toJson(),
-                    Enumerable.From(filters.features).Select(function (f) { return f.geometry; }).ToArray(),
-                    filters.srid,
+                    merged.toJson(),
+                    //Enumerable.From(filters.features).Select(function (f) { return f.geometry; }).ToArray(),
+                    //filters.srid,
                     function (resultString) {
 
                         var x2js = new X2JS();
@@ -33,7 +37,8 @@
                             return;
                         }
 
-                        var srid = ArrayHelper.Last(result.crs.properties.name.split(':'));
+                        //var srid = ArrayHelper.Last(result.crs.properties.name.split(':'));
+                        var srid = ArrayHelper.Last(gmlResult.FeatureCollection.boundedBy.Envelope._srsName.split(':'));
 
                         mapPresenter.updateSelectedResultLayerMap(result.features, srid);
 
@@ -54,6 +59,8 @@
                             if (!applicationPresenter.resultLayers) {
                                 applicationPresenter.resultLayers = [];
                             }
+
+                            ArrayHelper.RemoveWhen(applicationPresenter.resultLayers, function (p) { return p.id == id; });
 
                             applicationPresenter.resultLayers.push(newItem);
 
@@ -110,6 +117,8 @@
                             if (!applicationPresenter.resultLayers) {
                                 applicationPresenter.resultLayers = [];
                             }
+
+                            ArrayHelper.RemoveWhen(applicationPresenter.resultLayers, function (p) { return p.id == id; });
 
                             applicationPresenter.resultLayers.push(newItem);
 

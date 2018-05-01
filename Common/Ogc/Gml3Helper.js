@@ -254,30 +254,64 @@ Gml3Helper.GmlObjectToGeoJson = function (gmlObject, geometryColumnName) {
         features: []
     };
 
-    for (var i = 0; i < gmlObject.FeatureCollection.featureMember.length; i++) {
+    if (gmlObject.FeatureCollection.featureMember.length) {
 
-        var layerName = Object.keys(gmlObject.FeatureCollection.featureMember[i])[0];
+        for (var i = 0; i < gmlObject.FeatureCollection.featureMember.length; i++) {
 
-        var currentFeature = gmlObject.FeatureCollection.featureMember[i][layerName];
+            var jsonFeature = Gml3Helper.SingleGmlFeatureMemberToGeoJson(gmlObject.FeatureCollection.featureMember[i], geometryColumnName);
+            //var layerName = Object.keys(gmlObject.FeatureCollection.featureMember[i])[0];
 
-        var jsonFeature = {
-            geometry_name: geometryColumnName,
-            type: "Feature",
-            geometry: Gml3Helper.ToGeoJson(currentFeature[geometryColumnName]),
-            properties: {}
-        };
+            //var currentFeature = gmlObject.FeatureCollection.featureMember[i][layerName];
 
-        for (var property in currentFeature) {
-            if (currentFeature.hasOwnProperty(property) && !property.startsWith("_")) {
-                var value = currentFeature[property].__text;
+            //var jsonFeature = {
+            //    geometry_name: geometryColumnName,
+            //    type: "Feature",
+            //    geometry: Gml3Helper.ToGeoJson(currentFeature[geometryColumnName]),
+            //    properties: {}
+            //};
 
-                jsonFeature.properties[property] = value ? value : "";
-            }
+            //for (var property in currentFeature) {
+            //    if (currentFeature.hasOwnProperty(property) && !property.startsWith("_")) {
+            //        var value = currentFeature[property].__text;
+
+            //        jsonFeature.properties[property] = value ? value : "";
+            //    }
+            //}
+            result.features.push(jsonFeature);
         }
+    }
+    //just one object
+    else {
+
+        var jsonFeature = Gml3Helper.SingleGmlFeatureMemberToGeoJson(gmlObject.FeatureCollection.featureMember, geometryColumnName);
+
         result.features.push(jsonFeature);
     }
 
     return result;
+}
+
+Gml3Helper.SingleGmlFeatureMemberToGeoJson = function (singleFeatureMember, geometryColumnName) {
+    var layerName = Object.keys(singleFeatureMember)[0];
+
+    var currentFeature = singleFeatureMember[layerName];
+
+    var jsonFeature = {
+        geometry_name: geometryColumnName,
+        type: "Feature",
+        geometry: Gml3Helper.ToGeoJson(currentFeature[geometryColumnName]),
+        properties: {}
+    };
+
+    for (var property in currentFeature) {
+        if (currentFeature.hasOwnProperty(property) && !property.startsWith("_")) {
+            var value = currentFeature[property].__text;
+
+            jsonFeature.properties[property] = value ? value : "";
+        }
+    }
+
+    return jsonFeature;
 }
 
 
@@ -325,7 +359,7 @@ Gml3Helper.ToGeoJson = function (gmlAsJson) {
         else {
             result.coordinates.push(parseGmlLineStringToGeoJsonCoordinates(gmlAsJson.MultiLineString.lineStringMember.LineString));
         }
-         
+
         return result;
     }
     else if (gmlAsJson.Polygon) {
@@ -370,7 +404,7 @@ Gml3Helper.ToGeoJson = function (gmlAsJson) {
         else {
             result.coordinates.push(parseGmlLineStringToGeoJsonCoordinates(gmlAsJson.MultiCurve.curveMember.LineString));
         }
-         
+
         return result;
     }
 }
@@ -408,7 +442,7 @@ function parseGmlPolygonToGeoJsonCoordinates(gmlPolygon) {
         else {
             result.push(parseGmlLineStringToGeoJsonCoordinates(gmlPolygon.interior));
         }
-       
+
     }
 
     return result;

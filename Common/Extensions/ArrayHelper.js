@@ -25,6 +25,14 @@ ArrayHelper.RemoveAt = function (array, index) {
     }
 }
 
+ArrayHelper.RemoveWhen = function (array, criteriaFunc) {
+    for (var i = array.length - 1; i >= 0; i--) {
+        if (criteriaFunc(array[i])) {
+            array.splice(i, 1);
+        }
+    }
+}
+
 ArrayHelper.Add = function (array, value) {
     array.push(value);
 }
